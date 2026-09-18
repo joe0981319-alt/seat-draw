@@ -1,0 +1,510 @@
+<title>座位抽籤</title>
+<style>
+  :root{
+    --bg:#f3f1ec;
+    --surface:#ffffff;
+    --ink:#26241f;
+    --ink-soft:#6b6a63;
+    --line:#e2ded3;
+    --accent:#c1502e;
+    --accent-soft:#f0d9cd;
+    --seat-empty:#faf9f6;
+    --seat-taken:#2f5d4f;
+    --seat-taken-text:#eef4f1;
+    --shadow:0 1px 2px rgba(38,36,31,.06), 0 6px 20px rgba(38,36,31,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1b1a17;
+      --surface:#242320;
+      --ink:#eeece5;
+      --ink-soft:#a6a399;
+      --line:#39372f;
+      --accent:#e07a52;
+      --accent-soft:#3a2a22;
+      --seat-empty:#2a2925;
+      --seat-taken:#3f7263;
+      --seat-taken-text:#eef4f1;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1b1a17;
+    --surface:#242320;
+    --ink:#eeece5;
+    --ink-soft:#a6a399;
+    --line:#39372f;
+    --accent:#e07a52;
+    --accent-soft:#3a2a22;
+    --seat-empty:#2a2925;
+    --seat-taken:#3f7263;
+    --seat-taken-text:#eef4f1;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    padding:32px 16px 48px;
+    padding-block:32px 48px;
+  }
+  .wrap{max-width:880px;margin:0 auto;}
+  header{margin-bottom:28px;text-align:center;}
+  h1{
+    font-size:clamp(22px,4vw,30px);
+    margin:0 0 6px;
+    letter-spacing:.02em;
+    text-wrap:balance;
+  }
+  .sub{color:var(--ink-soft);font-size:14px;margin:0;}
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:20px;
+    margin-bottom:24px;
+  }
+  .panel h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+  }
+
+  /* People roster */
+  .roster{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(96px,1fr));
+    gap:12px;
+  }
+  .person{
+    border:2px solid transparent;
+    background:var(--seat-empty);
+    border-radius:12px;
+    padding:10px 8px 12px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    cursor:pointer;
+    transition:transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    font:inherit;
+    color:inherit;
+  }
+  .person:hover:not(:disabled){transform:translateY(-2px);}
+  .person:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .person.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .person:disabled{opacity:.4;cursor:not-allowed;}
+  .avatar{
+    width:64px;height:64px;border-radius:50%;
+    overflow:hidden;flex:none;
+    background:var(--line);
+    position:relative;
+  }
+  .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+  .order-badge{
+    position:absolute;
+    top:-4px;right:-4px;
+    width:22px;height:22px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fff;
+    font-size:12px;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 0 0 2px var(--surface);
+  }
+  .person-name{font-size:13px;font-weight:600;text-align:center;line-height:1.3;}
+  .person-status{font-size:11px;color:var(--ink-soft);}
+  .person.my-turn{border-color:var(--accent);}
+  .person.my-turn .person-status{color:var(--accent);font-weight:600;}
+
+  .draw-row{
+    display:flex;
+    justify-content:center;
+    margin-top:16px;
+  }
+  button.draw{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:11px 28px;
+    border-radius:999px;
+    font:inherit;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    transition:opacity .12s ease, transform .12s ease;
+  }
+  button.draw:hover:not(:disabled){transform:translateY(-1px);}
+  button.draw:disabled{opacity:.35;cursor:not-allowed;}
+
+  .phase-note{
+    text-align:center;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:10px 0 0;
+  }
+
+  /* Seat grid: 2x2 + 1 centered below */
+  .seat-area{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+  .seat-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(120px,180px));
+    gap:14px;
+    width:100%;
+    max-width:400px;
+  }
+  .seat-single{width:100%;max-width:180px;}
+  .seat{
+    aspect-ratio:1/1;
+    border-radius:14px;
+    border:2px dashed var(--line);
+    background:var(--seat-empty);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    cursor:pointer;
+    font:inherit;
+    color:var(--ink-soft);
+    transition:border-color .12s ease, transform .12s ease;
+    position:relative;
+    padding:10px;
+  }
+  .seat:hover:not(:disabled){border-color:var(--accent);transform:translateY(-2px);}
+  .seat:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .seat-label{
+    position:absolute;
+    top:8px;left:10px;
+    font-size:11px;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+  }
+  .seat-hint{font-size:12px;}
+  .seat.taken{
+    border-style:solid;
+    border-color:var(--seat-taken);
+    background:var(--seat-taken);
+    color:var(--seat-taken-text);
+    cursor:default;
+  }
+  .seat.taken .seat-label{color:var(--seat-taken-text);opacity:.75;}
+  .seat.locked{
+    cursor:not-allowed;
+    opacity:.55;
+  }
+  .seat-avatar{
+    width:52px;height:52px;border-radius:50%;
+    overflow:hidden;border:2px solid var(--seat-taken-text);
+  }
+  .seat-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+  .seat-name{font-size:13px;font-weight:700;}
+  .seat-badge{
+    position:absolute;top:8px;right:8px;
+    font-size:14px;
+  }
+
+  .actions{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    margin-top:22px;
+    flex-wrap:wrap;
+  }
+  button.reset{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    padding:10px 18px;
+    border-radius:999px;
+    font:inherit;
+    font-size:13px;
+    cursor:pointer;
+    transition:border-color .12s ease,color .12s ease;
+  }
+  button.reset:hover{border-color:var(--accent);color:var(--accent);}
+
+  .banner{
+    text-align:center;
+    font-size:13px;
+    color:var(--accent);
+    min-height:18px;
+    margin-top:4px;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>座位抽籤</h1>
+    <p class="sub" id="subTitle">先選擇一位人員，按下「抽籤」決定順序</p>
+  </header>
+
+  <section class="panel">
+    <h2>人員名單</h2>
+    <div class="roster" id="roster"></div>
+    <div class="draw-row">
+      <button class="draw" id="drawBtn" type="button" disabled>抽籤</button>
+    </div>
+    <p class="phase-note" id="phaseNote">請先選擇一位人員，再按抽籤</p>
+  </section>
+
+  <section class="panel">
+    <h2>座位配置</h2>
+    <div class="seat-area">
+      <div class="seat-grid" id="seatGrid"></div>
+      <div class="seat-single" id="seatSingleWrap"></div>
+    </div>
+    <p class="banner" id="banner">&nbsp;</p>
+    <div class="actions">
+      <button class="reset" id="resetBtn" type="button">重新抽籤</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var PEOPLE = [
+    { id: 'p1', name: '李承軒', img: 'photos/person1.png' },
+    { id: 'p2', name: 'AlexYang', img: 'photos/person2.png' },
+    { id: 'p3', name: 'Yvonne', img: 'photos/person3.png' },
+    { id: 'p4', name: 'Raino', img: 'photos/person4.png' },
+    { id: 'p5', name: '智輝', img: 'photos/person5.png' }
+  ];
+
+  var state = {
+    selectedPerson: null,
+    order: {},  // personId -> draw order number
+    seats: {}   // seatId -> personId
+  };
+
+  function save(){
+    try{ window.claude?.hot?.snapshot?.(state); }catch(e){}
+  }
+
+  var rosterEl = document.getElementById('roster');
+  var seatGridEl = document.getElementById('seatGrid');
+  var seatSingleEl = document.getElementById('seatSingleWrap');
+  var bannerEl = document.getElementById('banner');
+  var resetBtn = document.getElementById('resetBtn');
+  var drawBtn = document.getElementById('drawBtn');
+  var phaseNoteEl = document.getElementById('phaseNote');
+  var subTitleEl = document.getElementById('subTitle');
+
+  function personById(id){
+    for (var i=0;i<PEOPLE.length;i++) if (PEOPLE[i].id===id) return PEOPLE[i];
+    return null;
+  }
+
+  function isPersonSeated(personId){
+    for (var seatId in state.seats){
+      if (state.seats[seatId] === personId) return true;
+    }
+    return false;
+  }
+
+  function seatOfPerson(personId){
+    for (var seatId in state.seats){
+      if (state.seats[seatId] === personId) return seatId;
+    }
+    return null;
+  }
+
+  function allDrawn(){
+    return PEOPLE.every(function(p){ return state.order[p.id] != null; });
+  }
+
+  function currentTurnPersonId(){
+    var best = null;
+    PEOPLE.forEach(function(p){
+      if (state.order[p.id] == null) return;
+      if (isPersonSeated(p.id)) return;
+      if (best === null || state.order[p.id] < state.order[best]) best = p.id;
+    });
+    return best;
+  }
+
+  function renderRoster(){
+    rosterEl.innerHTML = '';
+    var drawPhaseDone = allDrawn();
+    var turnId = drawPhaseDone ? currentTurnPersonId() : null;
+
+    PEOPLE.forEach(function(p){
+      var seated = isPersonSeated(p.id);
+      var hasOrder = state.order[p.id] != null;
+      var isTurn = turnId === p.id;
+
+      var selectable;
+      if (seated){
+        selectable = false;
+      } else if (!drawPhaseDone){
+        selectable = !hasOrder;
+      } else {
+        selectable = isTurn;
+      }
+
+      var status;
+      if (seated){
+        status = '已入座 ' + seatOfPerson(p.id);
+      } else if (!hasOrder){
+        status = drawPhaseDone ? '未參與抽籤' : '尚未抽籤';
+      } else if (drawPhaseDone){
+        status = isTurn ? '輪到你選位' : ('等待中 · 第 ' + state.order[p.id] + ' 順位');
+      } else {
+        status = '已抽到第 ' + state.order[p.id] + ' 順位';
+      }
+
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'person'
+        + (state.selectedPerson === p.id ? ' selected' : '')
+        + (isTurn && !seated ? ' my-turn' : '');
+      btn.disabled = !selectable;
+      btn.id = 'person-' + p.id;
+      btn.innerHTML =
+        '<span class="avatar">' +
+          '<img src="' + p.img + '" alt="' + p.name + '">' +
+          (hasOrder ? '<span class="order-badge">' + state.order[p.id] + '</span>' : '') +
+        '</span>' +
+        '<span class="person-name">' + p.name + '</span>' +
+        '<span class="person-status">' + status + '</span>';
+      btn.addEventListener('click', function(){
+        state.selectedPerson = (state.selectedPerson === p.id) ? null : p.id;
+        if (state.selectedPerson){
+          bannerEl.textContent = drawPhaseDone
+            ? ('已選擇「' + p.name + '」，請點選座位')
+            : ('已選擇「' + p.name + '」，請按下方「抽籤」');
+        } else {
+          bannerEl.textContent = ' ';
+        }
+        renderAll();
+      });
+      rosterEl.appendChild(btn);
+    });
+
+    var canDraw = !drawPhaseDone && state.selectedPerson && state.order[state.selectedPerson] == null;
+    drawBtn.disabled = !canDraw;
+
+    if (drawPhaseDone){
+      subTitleEl.textContent = '依抽籤順序點選人員，再選擇座位';
+      var remaining = PEOPLE.filter(function(p){ return !isPersonSeated(p.id); }).length;
+      phaseNoteEl.textContent = remaining > 0
+        ? ('抽籤已完成，請依順序選位（尚餘 ' + remaining + ' 人）')
+        : '所有人員皆已入座';
+    } else {
+      subTitleEl.textContent = '先選擇一位人員，按下「抽籤」決定順序';
+      var undrawn = PEOPLE.filter(function(p){ return state.order[p.id] == null; }).length;
+      phaseNoteEl.textContent = '尚有 ' + undrawn + ' 人未抽籤';
+    }
+  }
+
+  function seatCard(seatId){
+    var personId = state.seats[seatId];
+    var seat = document.createElement('button');
+    seat.type = 'button';
+    seat.id = 'seat-' + seatId;
+    var drawPhaseDone = allDrawn();
+
+    if (personId){
+      var p = personById(personId);
+      seat.className = 'seat taken';
+      seat.disabled = true;
+      seat.innerHTML =
+        '<span class="seat-label">' + seatId + '</span>' +
+        '<span class="seat-badge">✓</span>' +
+        '<span class="seat-avatar"><img src="' + p.img + '" alt="' + p.name + '"></span>' +
+        '<span class="seat-name">' + p.name + '</span>';
+    } else if (!drawPhaseDone){
+      seat.className = 'seat locked';
+      seat.disabled = true;
+      seat.innerHTML =
+        '<span class="seat-label">' + seatId + '</span>' +
+        '<span class="seat-hint">等待抽籤</span>';
+    } else {
+      seat.className = 'seat';
+      seat.innerHTML =
+        '<span class="seat-label">' + seatId + '</span>' +
+        '<span class="seat-hint">空位</span>';
+      seat.addEventListener('click', function(){
+        if (!state.selectedPerson){
+          bannerEl.textContent = '請先在上方選擇輪到的人員';
+          return;
+        }
+        state.seats[seatId] = state.selectedPerson;
+        var p = personById(state.selectedPerson);
+        bannerEl.textContent = '「' + p.name + '」已入座 ' + seatId + ' 位';
+        state.selectedPerson = null;
+        renderAll();
+        save();
+      });
+    }
+    return seat;
+  }
+
+  function renderSeats(){
+    seatGridEl.innerHTML = '';
+    seatSingleEl.innerHTML = '';
+    ['A','B','C','D'].forEach(function(id){ seatGridEl.appendChild(seatCard(id)); });
+    seatSingleEl.appendChild(seatCard('E'));
+  }
+
+  function renderAll(){
+    renderRoster();
+    renderSeats();
+  }
+
+  drawBtn.addEventListener('click', function(){
+    var pid = state.selectedPerson;
+    if (!pid || state.order[pid] != null) return;
+    var used = PEOPLE.map(function(p){ return state.order[p.id]; }).filter(function(n){ return n != null; });
+    var pool = [];
+    for (var n=1;n<=PEOPLE.length;n++){ if (used.indexOf(n) === -1) pool.push(n); }
+    var picked = pool[Math.floor(Math.random() * pool.length)];
+    state.order[pid] = picked;
+    var p = personById(pid);
+    state.selectedPerson = null;
+    bannerEl.textContent = '「' + p.name + '」抽到第 ' + picked + ' 順位';
+    if (allDrawn()){
+      bannerEl.textContent += '，抽籤結束！請依順序選位';
+    }
+    renderAll();
+    save();
+  });
+
+  resetBtn.addEventListener('click', function(){
+    state.selectedPerson = null;
+    state.order = {};
+    state.seats = {};
+    bannerEl.textContent = ' ';
+    renderAll();
+    save();
+  });
+
+  function start(initial){
+    if (initial && initial.seats) state.seats = initial.seats;
+    if (initial && initial.order) state.order = initial.order;
+    if (initial && initial.selectedPerson) state.selectedPerson = initial.selectedPerson;
+    renderAll();
+  }
+
+  if (window.claude?.hot?.ready){
+    window.claude.hot.ready(start);
+  } else {
+    start(window.claude?.hot?.data || {});
+  }
+})();
+</script>
