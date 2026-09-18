@@ -176,10 +176,38 @@
   }
   .seat-grid{
     display:grid;
-    grid-template-columns:repeat(2,minmax(120px,180px));
-    gap:14px;
+    grid-template-columns:minmax(120px,180px) 28px minmax(120px,180px);
+    column-gap:0;
+    row-gap:14px;
     width:100%;
     max-width:400px;
+  }
+  .aisle{
+    grid-column:2;
+    grid-row:1 / -1;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .aisle::before{
+    content:'';
+    position:absolute;
+    top:0;
+    bottom:0;
+    left:50%;
+    border-left:1px dashed var(--line);
+  }
+  .aisle-label{
+    position:relative;
+    z-index:1;
+    writing-mode:vertical-rl;
+    text-orientation:mixed;
+    font-size:11px;
+    letter-spacing:.2em;
+    color:var(--ink-soft);
+    background:var(--surface);
+    padding:8px 2px;
   }
   .seat-heading{margin-top:24px;}
   .seat{
@@ -356,6 +384,33 @@
     color:var(--ink-soft);
     margin-top:6px;
   }
+  .complete-card{max-width:320px;}
+  .complete-emoji{
+    font-size:56px;
+    line-height:1;
+    margin:4px 0 0;
+    animation:number-pop .55s cubic-bezier(.2,1.5,.4,1) .15s both;
+  }
+  .lineup{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:10px;
+    margin-top:8px;
+  }
+  .lineup-item{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+  }
+  .lineup-avatar{
+    width:40px;height:40px;border-radius:50%;
+    overflow:hidden;
+    border:2px solid var(--accent-soft);
+  }
+  .lineup-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+  .lineup-seat{font-size:11px;color:var(--ink-soft);font-weight:600;}
 </style>
 
 <div class="wrap">
@@ -575,14 +630,29 @@
           : ('「' + p.name + '」已入座 ' + seatId + ' 位，所有人員皆已入座');
         renderAll();
         save();
+        if (!nextId){
+          showCompletionCelebration();
+        }
       });
     }
     return seat;
   }
 
+  var SEAT_POSITIONS = { A:[1,1], B:[3,1], C:[1,2], D:[3,2], E:[1,3] };
+
   function renderSeats(){
     seatGridEl.innerHTML = '';
-    ['A','B','C','D','E'].forEach(function(id){ seatGridEl.appendChild(seatCard(id)); });
+    ['A','B','C','D','E'].forEach(function(id){
+      var seat = seatCard(id);
+      var pos = SEAT_POSITIONS[id];
+      seat.style.gridColumn = pos[0];
+      seat.style.gridRow = pos[1];
+      seatGridEl.appendChild(seat);
+    });
+    var aisle = document.createElement('div');
+    aisle.className = 'aisle';
+    aisle.innerHTML = '<span class="aisle-label">走道</span>';
+    seatGridEl.appendChild(aisle);
   }
 
   function renderAll(){
@@ -632,6 +702,48 @@
     }
     overlay.addEventListener('click', close);
     setTimeout(close, 1500 + tier * 500);
+  }
+
+  function showCompletionCelebration(){
+    var overlay = document.createElement('div');
+    overlay.className = 'draw-overlay';
+
+    for (var i=0;i<110;i++){
+      var c = document.createElement('span');
+      c.className = 'confetti';
+      var dur = 1.6 + Math.random()*1.6;
+      var delay = Math.random() * 0.9;
+      c.style.left = (Math.random()*100) + '%';
+      c.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+      c.style.animationDuration = dur + 's';
+      c.style.animationDelay = delay + 's';
+      c.style.transform = 'rotate(' + Math.floor(Math.random()*360) + 'deg)';
+      overlay.appendChild(c);
+    }
+
+    var seatOrder = ['A','B','C','D','E'];
+    var lineup = seatOrder.map(function(seatId){
+      var p = personById(state.seats[seatId]);
+      return p
+        ? '<span class="lineup-item"><span class="lineup-avatar"><img src="' + p.img + '" alt="' + p.name + '"></span><span class="lineup-seat">' + seatId + '</span></span>'
+        : '';
+    }).join('');
+
+    var card = document.createElement('div');
+    card.className = 'draw-card shake complete-card';
+    card.innerHTML =
+      '<span class="draw-rays"></span>' +
+      '<span class="draw-eyebrow">座位安排完成</span>' +
+      '<span class="complete-emoji">🎉</span>' +
+      '<span class="draw-name">全部入座！</span>' +
+      '<span class="lineup">' + lineup + '</span>' +
+      '<span class="draw-hint">點擊任意處關閉</span>';
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    function close(){ overlay.remove(); }
+    overlay.addEventListener('click', close);
+    setTimeout(close, 4500);
   }
 
   drawBtn.addEventListener('click', function(){
