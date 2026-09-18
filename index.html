@@ -101,6 +101,7 @@
   .person:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .person.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
   .person:disabled{opacity:.4;cursor:not-allowed;}
+  .person.my-turn:disabled{opacity:1;}
   .avatar{
     width:64px;height:64px;border-radius:50%;
     overflow:hidden;flex:none;
@@ -124,8 +125,20 @@
   }
   .person-name{font-size:13px;font-weight:600;text-align:center;line-height:1.3;}
   .person-status{font-size:11px;color:var(--ink-soft);}
-  .person.my-turn{border-color:var(--accent);}
-  .person.my-turn .person-status{color:var(--accent);font-weight:600;}
+  .person.my-turn{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+    box-shadow:0 0 0 3px var(--accent-soft), 0 6px 18px rgba(193,80,46,.25);
+    animation:turn-pulse 1.6s ease-in-out infinite;
+  }
+  .person.my-turn .person-status{color:var(--accent);font-weight:700;}
+  @keyframes turn-pulse{
+    0%,100%{ box-shadow:0 0 0 3px var(--accent-soft), 0 6px 18px rgba(193,80,46,.25); }
+    50%{ box-shadow:0 0 0 6px var(--accent-soft), 0 8px 26px rgba(193,80,46,.4); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .person.my-turn{ animation:none; }
+  }
 
   .draw-row{
     display:flex;
