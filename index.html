@@ -168,12 +168,7 @@
     width:100%;
     max-width:400px;
   }
-  .seat-single{
-    display:grid;
-    grid-template-columns:minmax(120px,180px);
-    justify-content:center;
-    width:100%;
-  }
+  .seat-heading{margin-top:24px;}
   .seat{
     aspect-ratio:1/1;
     border-radius:14px;
@@ -356,20 +351,25 @@
     <p class="sub" id="subTitle">先選擇一位人員，按下「抽籤」決定順序</p>
   </header>
 
-  <section class="panel">
+  <section class="panel" id="pageDraw">
     <h2>人員名單</h2>
     <div class="roster" id="roster"></div>
     <div class="draw-row">
       <button class="draw" id="drawBtn" type="button" disabled>抽籤</button>
     </div>
     <p class="phase-note" id="phaseNote">請先選擇一位人員，再按抽籤</p>
+    <div class="actions">
+      <button class="reset" id="resetBtnDraw" type="button">重新抽籤</button>
+    </div>
   </section>
 
-  <section class="panel">
-    <h2>座位配置</h2>
+  <section class="panel" id="pageSeat" hidden>
+    <h2>抽籤順序</h2>
+    <div class="roster" id="rosterSeat"></div>
+    <p class="phase-note" id="phaseNoteSeat"></p>
+    <h2 class="seat-heading">座位配置</h2>
     <div class="seat-area">
       <div class="seat-grid" id="seatGrid"></div>
-      <div class="seat-single" id="seatSingleWrap"></div>
     </div>
     <p class="banner" id="banner">&nbsp;</p>
     <div class="actions">
@@ -399,13 +399,16 @@
   }
 
   var rosterEl = document.getElementById('roster');
+  var rosterSeatEl = document.getElementById('rosterSeat');
   var seatGridEl = document.getElementById('seatGrid');
-  var seatSingleEl = document.getElementById('seatSingleWrap');
   var bannerEl = document.getElementById('banner');
   var resetBtn = document.getElementById('resetBtn');
   var drawBtn = document.getElementById('drawBtn');
   var phaseNoteEl = document.getElementById('phaseNote');
+  var phaseNoteSeatEl = document.getElementById('phaseNoteSeat');
   var subTitleEl = document.getElementById('subTitle');
+  var pageDrawEl = document.getElementById('pageDraw');
+  var pageSeatEl = document.getElementById('pageSeat');
 
   function personById(id){
     for (var i=0;i<PEOPLE.length;i++) if (PEOPLE[i].id===id) return PEOPLE[i];
@@ -441,9 +444,12 @@
   }
 
   function renderRoster(){
-    rosterEl.innerHTML = '';
     var drawPhaseDone = allDrawn();
     var turnId = drawPhaseDone ? currentTurnPersonId() : null;
+    var activeEl = drawPhaseDone ? rosterSeatEl : rosterEl;
+    var inactiveEl = drawPhaseDone ? rosterEl : rosterSeatEl;
+    activeEl.innerHTML = '';
+    inactiveEl.innerHTML = '';
 
     PEOPLE.forEach(function(p){
       var seated = isPersonSeated(p.id);
@@ -451,12 +457,10 @@
       var isTurn = turnId === p.id;
 
       var selectable;
-      if (seated){
+      if (seated || drawPhaseDone){
         selectable = false;
-      } else if (!drawPhaseDone){
-        selectable = !hasOrder;
       } else {
-        selectable = isTurn;
+        selectable = !hasOrder;
       }
 
       var status;
@@ -484,7 +488,7 @@
         '</span>' +
         '<span class="person-name">' + p.name + '</span>' +
         '<span class="person-status">' + status + '</span>';
-      btn.addEventListener('click', function(){
+      if (!drawPhaseDone) btn.addEventListener('click', function(){
         state.selectedPerson = (state.selectedPerson === p.id) ? null : p.id;
         if (state.selectedPerson){
           bannerEl.textContent = drawPhaseDone
@@ -495,17 +499,20 @@
         }
         renderAll();
       });
-      rosterEl.appendChild(btn);
+      activeEl.appendChild(btn);
     });
 
     var canDraw = !drawPhaseDone && state.selectedPerson && state.order[state.selectedPerson] == null;
     drawBtn.disabled = !canDraw;
 
+    pageDrawEl.hidden = drawPhaseDone;
+    pageSeatEl.hidden = !drawPhaseDone;
+
     if (drawPhaseDone){
-      subTitleEl.textContent = '依抽籤順序點選人員，再選擇座位';
+      subTitleEl.textContent = '依抽籤順序輪流選位，輪到的人員會自動標示';
       var remaining = PEOPLE.filter(function(p){ return !isPersonSeated(p.id); }).length;
-      phaseNoteEl.textContent = remaining > 0
-        ? ('抽籤已完成，請依順序選位（尚餘 ' + remaining + ' 人）')
+      phaseNoteSeatEl.textContent = remaining > 0
+        ? ('請依順序選位（尚餘 ' + remaining + ' 人）')
         : '所有人員皆已入座';
     } else {
       subTitleEl.textContent = '先選擇一位人員，按下「抽籤」決定順序';
@@ -542,14 +549,17 @@
         '<span class="seat-label">' + seatId + '</span>' +
         '<span class="seat-hint">空位</span>';
       seat.addEventListener('click', function(){
-        if (!state.selectedPerson){
-          bannerEl.textContent = '請先在上方選擇輪到的人員';
+        var turnId = currentTurnPersonId();
+        if (!turnId){
+          bannerEl.textContent = '所有人員皆已入座';
           return;
         }
-        state.seats[seatId] = state.selectedPerson;
-        var p = personById(state.selectedPerson);
-        bannerEl.textContent = '「' + p.name + '」已入座 ' + seatId + ' 位';
-        state.selectedPerson = null;
+        state.seats[seatId] = turnId;
+        var p = personById(turnId);
+        var nextId = currentTurnPersonId();
+        bannerEl.textContent = nextId
+          ? ('「' + p.name + '」已入座 ' + seatId + ' 位，換「' + personById(nextId).name + '」選位')
+          : ('「' + p.name + '」已入座 ' + seatId + ' 位，所有人員皆已入座');
         renderAll();
         save();
       });
@@ -559,9 +569,7 @@
 
   function renderSeats(){
     seatGridEl.innerHTML = '';
-    seatSingleEl.innerHTML = '';
-    ['A','B','C','D'].forEach(function(id){ seatGridEl.appendChild(seatCard(id)); });
-    seatSingleEl.appendChild(seatCard('E'));
+    ['A','B','C','D','E'].forEach(function(id){ seatGridEl.appendChild(seatCard(id)); });
   }
 
   function renderAll(){
@@ -634,14 +642,16 @@
     });
   });
 
-  resetBtn.addEventListener('click', function(){
+  function resetAll(){
     state.selectedPerson = null;
     state.order = {};
     state.seats = {};
     bannerEl.textContent = ' ';
     renderAll();
     save();
-  });
+  }
+  resetBtn.addEventListener('click', resetAll);
+  document.getElementById('resetBtnDraw').addEventListener('click', resetAll);
 
   function start(initial){
     if (initial && initial.seats) state.seats = initial.seats;
